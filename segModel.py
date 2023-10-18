@@ -1,16 +1,13 @@
 import cv2
 import numpy as np
-# from cellpose import models
+from cellpose import models
 import matplotlib.pyplot as plt
 import os
-from scipy import ndimage
-from collections import defaultdict
 import time
-import sys
-
+import pandas as pd
 class segModel:
     def __init__(self, filename, save_filename=None) -> None:
-        # self.model = models.Cellpose(gpu=True, model_type='cyto')
+        self.model = models.Cellpose(gpu=True, model_type='cyto')
         self.filename = filename
 
         self.gray_stack, self.calcium_stack = self.get_frames()
@@ -29,17 +26,13 @@ class segModel:
         gray_stack = np.zeros(shape=(image.shape[0],image.shape[1],frame_count))
         calcium_stack = np.zeros(shape=(image.shape[0],image.shape[1],frame_count))
 
-        gray_stack[:,:,0] = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        calcium_stack[:,:,0] = image[:,:,1]
-
-        frame_idx = 1
+        frame_idx = 0
         while success:
-    
-            success,image = vidcap.read()
 
             gray_stack[:,:,frame_idx] = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             calcium_stack[:,:,frame_idx] = image[:,:,1]
             frame_idx+=1
+            success,image = vidcap.read()
 
         return gray_stack, calcium_stack
 
@@ -77,89 +70,18 @@ class segModel:
         print(f'segmentation took {time.time()-start_time:.2f} seconds')
 
         return masks, mean_mat, processed_mean_mat
-
-    # def get_mean_image_from_video(self):
-
-    #     # Read video
-    #     cap = cv2.VideoCapture(self.filename)
-    #     fps = cap.get(cv2.CAP_PROP_FPS)
-    #     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        
-    #     # Get frame width and height
-    #     frame_width = int(cap.get(3))
-    #     frame_height = int(cap.get(4))
-
-    #     # Extract frames
-    #     frame_mat = np.zeros(shape=(frame_height, frame_width, frame_count))
-    #     frame_idx = 0
-    #     while(cap.isOpened()):
-    #         ret, frame = cap.read()
-    #         if ret:
-    #             # Convert frame to grayscale if it's not already
-    #             if len(frame.shape) == 3:
-    #                 gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    #             else:
-    #                 gray_frame = frame
-    #             frame_mat[:,:,frame_idx] = gray_frame
-    #         else:
-    #             break
-        
-    #     # Take the average of the frames
-    #     mean_mat = np.mean(frame_mat, axis=2)
-        
-    #     return mean_mat
-
-    # def get_mean_image_from_tiffs(self):
-    #     # images
-    #     image_filenames = sorted(os.listdir(self.filename))
-
-    #     im0 = cv2.imread(self.filename+'/'+image_filenames[0])
-
-    #     frame_height = im0.shape[0]
-    #     frame_width = im0.shape[1]
-    #     frame_count = len(image_filenames)
-
-    #     frame_mat = np.zeros(shape=(frame_height, frame_width, frame_count))
-        
-    #     for i in range(frame_count):
-            
-    #         frame = cv2.imread(self.filename+'/'+image_filenames[i])
-            
-    #         # Convert frame to grayscale if it's not already
-    #         if len(frame.shape) == 3:
-    #             gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    #         else:
-    #             gray_frame = frame
-    #         frame_mat[:,:,i] = gray_frame
-
-    #     # Take the average of the frames
-    #     mean_mat = np.mean(frame_mat, axis=2)
-
-    #     return mean_mat
+    
     
     def visualize_segmentation(self, segmentation):
-        # cap = cv2.VideoCapture(self.filename)
-
-        # Define the codec and create VideoWriter object in .mp4 format
-        # out_contours = cv2.VideoWriter('bot_01_before_test_contours_video.mp4',cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width,frame_height))
-
-        # while(cap.isOpened()):
-        #     # Capture frame-by-frame
-        #     ret, frame = cap.read()
-
-        #     break
-
+    
         vidcap = cv2.VideoCapture(self.filename)
         success,frame = vidcap.read()
 
         for i in range(1, len(np.unique(segmentation)) + 1):
             mask = segmentation == i
-            # if np.sum(mask) > 0:
             contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
-            # x, y, w, h = cv2.boundingRect(contours[0])
             cv2.drawContours(frame, contours, 0, (255, 0, 0), 1)
-            # cv2.rectangle(boundary_image, (x, y), (x + w, y + h), (0, 0, 255), 1)
 
         plt.imshow(frame)
         plt.axis('off')
@@ -188,27 +110,16 @@ class segModel:
 
         while(success):
             # Capture frame-by-frame
-
-            # retrieve the labeled image from data
-            # draw contours
             
             # Draw contours
             contour_image = np.copy(frame)
-            # boundary_image = np.copy(mean_mat)
             for i in range(1, len(np.unique(segmentation)) + 1):
                 mask = segmentation == i
                 if np.sum(mask) > 0:
                     contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-                    # x, y, w, h = cv2.boundingRect(contours[0])
                     cv2.drawContours(contour_image, contours, -1, (255, 0, 0), 1)
-                    # cv2.rectangle(boundary_image, (x, y), (x + w, y + h), (0, 0, 255), 1)
             
             out_contours.write(contour_image)
-            # plt.imshow(contour_image)
-            # plt.axis('off')
-            # plt.savefig(f'results/{self.save_filename}_frame{frame_idx}.png', dpi=300, bbox_inches='tight')
-            # plt.close()
-
             contour_images.append(contour_image)
 
             frame_idx += 1
@@ -219,8 +130,65 @@ class segModel:
         out_contours.release()
         return contour_images, fps
     
-    def extract_timeseries(self):
-        pass
+    def extract_timeseries(self, segmentation, save_centroids=True, save_pixels=False):
+
+        start_time = time.time()
+
+        n_cells = np.max(segmentation) # max ROI ID
+        n_timesteps = self.calcium_stack.shape[2]
+
+        # Initialize empty time series matrix of shape # cells x # timesteps
+        series = np.zeros(shape=(n_cells, n_timesteps))
+
+        if save_centroids:
+            # Initialize empty dataframe to store centroids for the indentified cells
+            centroids_df = pd.DataFrame(columns=['label','series_index','x','y'])
+
+        if save_pixels:
+            # Initialize empty dataframe to store the label, x, and y of identified cells 
+            pixels_df = pd.DataFrame(columns=['label','series_index','x','y'])
+
+        # Image indices
+        inds = np.indices((self.calcium_stack.shape[0], self.calcium_stack.shape[1]))
+
+        # Loop through each frame
+        for t in range(n_timesteps):
+            # print(f'processing frame {t}')
+            
+            # Loop through each cell
+            for label in range(1,n_cells+1): # first label=1 (0 is background)
+
+                im = self.calcium_stack[:,:,t]
+                series[label-1, t] = np.mean(im[segmentation==label])
+
+                # Save out spatial data
+                xs = inds[0,:,:][segmentation==label]
+                ys = inds[1,:,:][segmentation==label]
+
+                if save_centroids:
+                    centroid_x = np.mean(xs)
+                    centroid_y = np.mean(ys)
+
+                    # Append to centroids_df
+                    row = pd.Series({'label':int(label), 'series_index':int(label-1), 'x':centroid_x, 'y':centroid_y})
+
+                    centroids_df = pd.concat([centroids_df, row.to_frame().T], ignore_index=True)
+                    
+
+                if save_pixels:
+                    # Append to pixels_df 
+                    for i in range(len(xs)):
+                        rows = {'label':int(label), 'series_index':int(label-1), 'x':xs[i], 'y':ys[i]}
+                        pixels_df = pixels_df.append(rows, ignore_index=True)
+
+        print(series[:10,:10])
+
+        print(f'extraction took {time.time()-start_time:.2f} seconds')
+        np.savetxt(f'results/{self.save_filename}_series.csv', series, delimiter=',')
+        if save_centroids:
+            centroids_df.to_csv(f'results/{self.save_filename}_centroids.csv', sep=',',header=True, index=False)
+        if save_pixels:
+            pixels_df.to_csv(f'results/{self.save_filename}_pixels.csv', sep=',', header=True, index=False)
 
 if __name__=='__main__':
     
