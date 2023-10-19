@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from cellpose import models
+# from cellpose import models
 import matplotlib.pyplot as plt
 import os
 import time
@@ -9,7 +9,7 @@ import matplotlib as mpl
 
 class segModel:
     def __init__(self, filename, save_filename=None, stationary=True, gpu=True) -> None:
-        self.model = models.Cellpose(gpu=gpu, model_type='cyto')
+        # self.model = models.Cellpose(gpu=gpu, model_type='cyto')
         self.filename = filename
         self.stationary = stationary
 
@@ -26,7 +26,7 @@ class segModel:
         success,image = vidcap.read()
         frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        if self.stationary:
+        if self.stationary==True:
             gray_stack = np.zeros(shape=(image.shape[0],image.shape[1],frame_count))
         else:
             gray_stack = np.zeros(shape=(frame_count,image.shape[0],image.shape[1]))
@@ -35,7 +35,7 @@ class segModel:
         frame_idx = 0
         while success:
 
-            if self.stationary:
+            if self.stationary==True:
                 gray_stack[:,:,frame_idx] = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             else:
                 gray_stack[frame_idx,:,:] = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -47,8 +47,7 @@ class segModel:
         return gray_stack, calcium_stack
 
     def process_data(self, cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold=None):
-
-        if self.stationary:
+        if self.stationary==True:
             masks = self.process_stationary_data(cell_diameter, flow_thresh, cell_prob_thresh, resample)
             return masks
         else:
@@ -109,6 +108,8 @@ class segModel:
             # Sharpen the image
             processed_gray_stack[i,:,:] = cv2.filter2D(processed_gray_stack[i,:,:], -1, kernel_sharp)
 
+        print(processed_gray_stack.shape)
+        exit()
         masks, flows, styles, dia = self.model.eval(processed_gray_stack, diameter=cell_diameter, channels=[0, 0], cellprob_threshold=cell_prob_thresh, flow_threshold=flow_thresh, resample=resample, stitch_threshold=stitch_threshold)
 
         # Save out labeled image
@@ -124,7 +125,7 @@ class segModel:
         vidcap = cv2.VideoCapture(self.filename)
         success,frame = vidcap.read()
 
-        if not self.stationary:
+        if self.stationary==False:
             segmentation=segmentation[0,:,:] # first frame
         
         for i in range(1, len(np.unique(segmentation)) + 1):
@@ -161,7 +162,7 @@ class segModel:
         while(success):
             # Capture frame-by-frame
 
-            if not self.stationary:
+            if self.stationary==False:
                 labels = segmentation[frame_idx,:,:]
             else:
                 labels=segmentation
@@ -210,7 +211,7 @@ class segModel:
         for t in range(n_timesteps):
             # print(f'processing frame {t}')
 
-            if not self.stationary:
+            if self.stationary==False:
                 labels = segmentation[t,:,:]
             else:
                 labels = segmentation
@@ -253,8 +254,8 @@ class segModel:
 if __name__=='__main__':
     
     # Data
-    FILENAME = '2022-10-13-6sLA-e 2-10s int.mp4' # bot_[id]_[phase]
-    INPUT_TYPE = 0 # 0 = video (.mp4 file), 1 = folder of .tiff images
+    FILENAME = '2022-10-13-6sLA-e 2-10s int+ATPimme.mp4' # bot_[id]_[phase]
+    STATIONARY = 'False'
 
     # MODEL PARAMETERS
 
@@ -271,5 +272,5 @@ if __name__=='__main__':
     RESAMPLE = False
     # https://cellpose.readthedocs.io/en/latest/settings.html#resample
 
-    seg = segModel(filename=FILENAME)
-    masks, mean_mat = seg.process_data(cell_diameter=DIAMETER, flow_thresh=FLOW_THRESHOLD, cell_prob_thresh=CELL_PROB_THRESHOLD, resample=RESAMPLE)
+    seg = segModel(filename=FILENAME, stationary=STATIONARY)
+    masks, mean_mat = seg.process_data(cell_diameter=DIAMETER, flow_thresh=FLOW_THRESHOLD, cell_prob_thresh=CELL_PROB_THRESHOLD, resample=RESAMPLE, stitch_threshold=0.75)
