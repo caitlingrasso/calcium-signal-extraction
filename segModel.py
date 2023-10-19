@@ -108,8 +108,6 @@ class segModel:
             # Sharpen the image
             processed_gray_stack[i,:,:] = cv2.filter2D(processed_gray_stack[i,:,:], -1, kernel_sharp)
 
-        print(processed_gray_stack.shape)
-        exit()
         masks, flows, styles, dia = self.model.eval(processed_gray_stack, diameter=cell_diameter, channels=[0, 0], cellprob_threshold=cell_prob_thresh, flow_threshold=flow_thresh, resample=resample, stitch_threshold=stitch_threshold)
 
         # Save out labeled image
