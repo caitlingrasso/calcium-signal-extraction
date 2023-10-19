@@ -8,8 +8,8 @@ import pandas as pd
 import matplotlib as mpl
 
 class segModel:
-    def __init__(self, filename, save_filename=None, stationary=True) -> None:
-        self.model = models.Cellpose(gpu=True, model_type='cyto')
+    def __init__(self, filename, save_filename=None, stationary=True, gpu=True) -> None:
+        self.model = models.Cellpose(gpu=gpu, model_type='cyto')
         self.filename = filename
         self.stationary = stationary
 
