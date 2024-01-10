@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-# from cellpose import models
+from cellpose import models
 import matplotlib.pyplot as plt
 import os
 import time
@@ -9,7 +9,7 @@ import matplotlib as mpl
 
 class segModel:
     def __init__(self, filename, save_filename=None, stationary=True, gpu=True) -> None:
-        # self.model = models.Cellpose(gpu=gpu, model_type='cyto')
+        self.model = models.Cellpose(gpu=gpu, model_type='cyto')
         self.filename = filename
         self.stationary = stationary
 
