@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from cellpose import models
+# from cellpose import models
 import matplotlib.pyplot as plt
 import os
 import time
@@ -9,7 +9,7 @@ import matplotlib as mpl
 
 class segModel:
     def __init__(self, filename, save_filename=None, stationary=True, gpu=True) -> None:
-        self.model = models.Cellpose(gpu=gpu, model_type='cyto')
+        # self.model = models.Cellpose(gpu=gpu, model_type='cyto')
         self.filename = filename
         self.stationary = stationary
 
@@ -26,19 +26,19 @@ class segModel:
         success,image = vidcap.read()
         frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        if self.stationary==True:
-            gray_stack = np.zeros(shape=(image.shape[0],image.shape[1],frame_count))
-        else:
-            gray_stack = np.zeros(shape=(frame_count,image.shape[0],image.shape[1]))
+        # if self.stationary==True:
+        gray_stack = np.zeros(shape=(image.shape[0],image.shape[1],frame_count))
+        # else:
+        #     gray_stack = np.zeros(shape=(frame_count,image.shape[0],image.shape[1]))
         calcium_stack = np.zeros(shape=(image.shape[0],image.shape[1],frame_count))
 
         frame_idx = 0
         while success:
 
-            if self.stationary==True:
-                gray_stack[:,:,frame_idx] = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            else:
-                gray_stack[frame_idx,:,:] = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            # if self.stationary==True:
+            gray_stack[:,:,frame_idx] = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            # else:
+            #     gray_stack[frame_idx,:,:] = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
             calcium_stack[:,:,frame_idx] = image[:,:,1]
             frame_idx+=1
@@ -91,12 +91,14 @@ class segModel:
     def process_nonstationary_data(self, cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold):
         start_time = time.time()
 
+        os.makedirs('results/', exist_ok=True)
+
         # Image Preprocessing
         processed_gray_stack = np.copy(self.gray_stack)
         
         kernel_mc = np.ones((3,3),np.uint8) # morph closing kernel
         kernel_sharp = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-        for i in range(processed_gray_stack.shape[0]):
+        for i in range(processed_gray_stack.shape[2]):
             # Enhance contrast
             processed_gray_stack[i,:,:] = cv2.normalize(processed_gray_stack[i,:,:], None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
 
@@ -107,12 +109,15 @@ class segModel:
 
             # Sharpen the image
             processed_gray_stack[i,:,:] = cv2.filter2D(processed_gray_stack[i,:,:], -1, kernel_sharp)
+            
+            masks, flows, styles, dia = self.model.eval(processed_gray_stack[i,:,:], diameter=cell_diameter, channels=[0, 0], cellprob_threshold=cell_prob_thresh, flow_threshold=flow_thresh, resample=resample)
+            np.save('results/{}_segmentation_{}.npy'.format(self.save_filename, i), masks)
 
-        masks, flows, styles, dia = self.model.eval(processed_gray_stack, diameter=cell_diameter, channels=[0, 0], cellprob_threshold=cell_prob_thresh, flow_threshold=flow_thresh, resample=resample, stitch_threshold=stitch_threshold)
+        # masks, flows, styles, dia = self.model.eval(processed_gray_stack, diameter=cell_diameter, channels=[0, 0], cellprob_threshold=cell_prob_thresh, flow_threshold=flow_thresh, resample=resample, stitch_threshold=stitch_threshold)
 
-        # Save out labeled image
-        os.makedirs('results/', exist_ok=True)
-        np.save('results/{}_segmentation.npy'.format(self.save_filename), masks)
+        # # Save out labeled image
+        # os.makedirs('results/', exist_ok=True)
+        # np.save('results/{}_segmentation.npy'.format(self.save_filename), masks)
 
         print(f'segmentation took {time.time()-start_time:.2f} seconds')
 
@@ -150,6 +155,7 @@ class segModel:
         frame_height = int(vidcap.get(4))
 
         # Define the codec and create VideoWriter object in .mp4 format
+        os.makedirs('results/', exist_ok=True)
         out_contours = cv2.VideoWriter('results/'+self.save_filename+'_segmentation.mp4',cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width,frame_height))
         frame_idx = 0
 
