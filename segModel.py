@@ -100,15 +100,15 @@ class segModel:
         kernel_sharp = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
         for i in range(processed_gray_stack.shape[2]):
             # Enhance contrast
-            processed_gray_stack[i,:,:] = cv2.normalize(processed_gray_stack[:,:,i], None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+            processed_gray_stack[:,:,i] = cv2.normalize(processed_gray_stack[:,:,i], None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
 
             # # Morphological closing
-            processed_gray_stack[i,:,:] = cv2.morphologyEx(processed_gray_stack[:,:,i], cv2.MORPH_CLOSE, kernel_mc,iterations = 1)
+            processed_gray_stack[:,:,i] = cv2.morphologyEx(processed_gray_stack[:,:,i], cv2.MORPH_CLOSE, kernel_mc,iterations = 1)
 
             # TODO: add a background subtraction?
 
             # Sharpen the image
-            processed_gray_stack[i,:,:] = cv2.filter2D(processed_gray_stack[:,:,i], -1, kernel_sharp)
+            processed_gray_stack[:,:,i] = cv2.filter2D(processed_gray_stack[:,:,i], -1, kernel_sharp)
             
             masks, flows, styles, dia = self.model.eval(processed_gray_stack[:,:,i], diameter=cell_diameter, channels=[0, 0], cellprob_threshold=cell_prob_thresh, flow_threshold=flow_thresh, resample=resample)
             np.save('results/{}_segmentation_{}.npy'.format(self.save_filename, i), masks)
