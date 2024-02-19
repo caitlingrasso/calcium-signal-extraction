@@ -145,7 +145,7 @@ class segModel:
             # Sharpen the image
             processed_gray_stack[i,:,:] = cv2.filter2D(processed_gray_stack[i,:,:], -1, kernel_sharp)
         
-        masks_stitched, flows_stitched, styles_stitched, _ = self.model.eval(processed_gray_stack, channels=[0,0], diameter=cell_diameter, cellprob_threshold=cell_prob_thresh, flow_threshold=flow_thresh, resample=resample, do_3D=False, stitch_threshold=0.5)
+        masks_stitched, flows_stitched, styles_stitched, _ = self.model.eval(processed_gray_stack, channels=[0,0], diameter=cell_diameter, cellprob_threshold=cell_prob_thresh, flow_threshold=flow_thresh, resample=resample, do_3D=False, stitch_threshold=stitch_threshold)
         np.save('results/{}_segmentation_{}.npy'.format(self.save_filename, i), masks_stitched)
 
         print(f'segmentation took {time.time()-start_time:.2f} seconds')
