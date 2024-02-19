@@ -26,7 +26,10 @@ class segModel:
         # Extract frames from video
         vidcap = cv2.VideoCapture(self.filename)
         success,image = vidcap.read()
-        frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
+        # frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+        # TESTING: use only the first few frames 
+        frame_count=2
 
         if self.mode=='do3D':
             gray_stack = np.zeros(shape=(frame_count,image.shape[0],image.shape[1])) #Z,X,Y for cellpose 3D segmentation
@@ -38,6 +41,10 @@ class segModel:
         frame_idx = 0
         while success:
 
+            # TESTING: use only the first few frames
+            if frame_idx == 2:
+                break
+
             if self.mode=='do3D':
                 gray_stack[frame_idx,:,:] = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             else:
@@ -46,10 +53,6 @@ class segModel:
             calcium_stack[:,:,frame_idx] = image[:,:,1]
             frame_idx+=1
             success,image = vidcap.read()
-            
-            # TESTING: use only the first few frames
-            if frame_idx ==2:
-                break
 
         return gray_stack, calcium_stack
 
@@ -146,7 +149,7 @@ class segModel:
             processed_gray_stack[i,:,:] = cv2.filter2D(processed_gray_stack[i,:,:], -1, kernel_sharp)
         
         masks_stitched, flows_stitched, styles_stitched, _ = self.model.eval(processed_gray_stack, channels=[0,0], diameter=cell_diameter, cellprob_threshold=cell_prob_thresh, flow_threshold=flow_thresh, resample=resample, do_3D=False, stitch_threshold=stitch_threshold)
-        np.save('results/{}_segmentation_{}.npy'.format(self.save_filename, i), masks_stitched)
+        np.save('results/{}_segmentation.npy'.format(self.save_filename), masks_stitched)
 
         print(f'segmentation took {time.time()-start_time:.2f} seconds')
 
