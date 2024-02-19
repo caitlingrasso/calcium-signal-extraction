@@ -5,13 +5,15 @@ import matplotlib.pyplot as plt
 import os
 import time
 import pandas as pd
-import matplotlib as mpl
 
 class segModel:
-    def __init__(self, filename, save_filename=None, stationary=True, gpu=True) -> None:
+    def __init__(self, filename, save_filename=None, gpu=True, mode=None) -> None:
         self.model = models.Cellpose(gpu=gpu, model_type='cyto')
         self.filename = filename
-        self.stationary = stationary
+        
+        if mode is None:
+            print("Specify segmentation mode: stationary, non-stationary, do3D") # TODO: change this once non-stationary method has been nailed down
+        self.mode = mode
 
         self.gray_stack, self.calcium_stack = self.get_frames()
         
@@ -26,33 +28,40 @@ class segModel:
         success,image = vidcap.read()
         frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        # if self.stationary==True:
-        gray_stack = np.zeros(shape=(image.shape[0],image.shape[1],frame_count))
-        # else:
-        #     gray_stack = np.zeros(shape=(frame_count,image.shape[0],image.shape[1]))
+        if self.mode=='do3D':
+            gray_stack = np.zeros(shape=(frame_count,image.shape[0],image.shape[1])) #Z,X,Y for cellpose 3D segmentation
+        else:
+            gray_stack = np.zeros(shape=(image.shape[0],image.shape[1],frame_count))
+
         calcium_stack = np.zeros(shape=(image.shape[0],image.shape[1],frame_count))
 
         frame_idx = 0
         while success:
 
-            # if self.stationary==True:
-            gray_stack[:,:,frame_idx] = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            # else:
-            #     gray_stack[frame_idx,:,:] = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            if self.mode=='do3D':
+                gray_stack[frame_idx,:,:] = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            else:
+                gray_stack[:,:,frame_idx] = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
             calcium_stack[:,:,frame_idx] = image[:,:,1]
             frame_idx+=1
             success,image = vidcap.read()
+            
+            # TESTING: use only the first few frames
+            if frame_idx ==2:
+                break
 
         return gray_stack, calcium_stack
 
     def process_data(self, cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold=None):
-        if self.stationary==True:
-            masks = self.process_stationary_data(cell_diameter, flow_thresh, cell_prob_thresh, resample)
-            return masks
-        else:
-            masks = self.process_nonstationary_data(cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold)
-            return masks
+        if self.mode=='stationary':
+            self.process_stationary_data(cell_diameter, flow_thresh, cell_prob_thresh, resample)
+        
+        elif self.mode=='non-stationary':
+            self.process_nonstationary_data(cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold)
+
+        elif self.mode=='do3D':
+            self.process_3D_data(cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold)
     
     def process_stationary_data(self, cell_diameter, flow_thresh, cell_prob_thresh, resample):
         start_time = time.time()
@@ -86,7 +95,6 @@ class segModel:
 
         print(f'segmentation took {time.time()-start_time:.2f} seconds')
 
-        return masks
     
     def process_nonstationary_data(self, cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold):
         start_time = time.time()
@@ -113,24 +121,49 @@ class segModel:
             masks, flows, styles, dia = self.model.eval(processed_gray_stack[:,:,i], diameter=cell_diameter, channels=[0, 0], cellprob_threshold=cell_prob_thresh, flow_threshold=flow_thresh, resample=resample)
             np.save('results/{}_segmentation_{}.npy'.format(self.save_filename, i), masks)
 
-        # masks, flows, styles, dia = self.model.eval(processed_gray_stack, diameter=cell_diameter, channels=[0, 0], cellprob_threshold=cell_prob_thresh, flow_threshold=flow_thresh, resample=resample, stitch_threshold=stitch_threshold)
+        print(f'segmentation took {time.time()-start_time:.2f} seconds')
 
-        # # Save out labeled image
-        # os.makedirs('results/', exist_ok=True)
-        # np.save('results/{}_segmentation.npy'.format(self.save_filename), masks)
+    def process_3D_data(self, cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold):
+        start_time = time.time()
+
+        os.makedirs('results/', exist_ok=True)
+
+        # Image Preprocessing
+        processed_gray_stack = np.copy(self.gray_stack)
+        
+        kernel_mc = np.ones((3,3),np.uint8) # morph closing kernel
+        kernel_sharp = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+        for i in range(processed_gray_stack.shape[0]): # iterate over frames
+            # Enhance contrast
+            processed_gray_stack[i,:,:] = cv2.normalize(processed_gray_stack[i,:,:], None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+
+            # # Morphological closing
+            processed_gray_stack[i,:,:] = cv2.morphologyEx(processed_gray_stack[i,:,:], cv2.MORPH_CLOSE, kernel_mc,iterations = 1)
+
+            # TODO: add a background subtraction?
+
+            # Sharpen the image
+            processed_gray_stack[i,:,:] = cv2.filter2D(processed_gray_stack[i,:,:], -1, kernel_sharp)
+        
+        masks_stitched, flows_stitched, styles_stitched, _ = self.model.eval(processed_gray_stack, channels=[0,0], diameter=cell_diameter, cellprob_threshold=cell_prob_thresh, flow_threshold=flow_thresh, resample=resample, do_3D=False, stitch_threshold=0.5)
+        np.save('results/{}_segmentation_{}.npy'.format(self.save_filename, i), masks_stitched)
 
         print(f'segmentation took {time.time()-start_time:.2f} seconds')
 
-        return masks
-    
-    def visualize_segmentation(self, segmentation):
-    
-        vidcap = cv2.VideoCapture(self.filename)
-        success,frame = vidcap.read()
-
-        if self.stationary==False:
-            segmentation=segmentation[0,:,:] # first frame
+    def visualize_segmentation(self):
         
+        # Load segmentation
+        if self.stationary:
+            seg_path = 'results/'+self.filename.split('.mp4')[0]+'_segmentation.npy'
+        else:
+            seg_path = 'results/'+self.filename.split('.mp4')[0]+'_segmentation_0.npy' # first frame
+        segmentation = np.load(seg_path, allow_pickle=True)
+    
+        # Load video
+        vidcap = cv2.VideoCapture(self.filename)
+        success,frame = vidcap.read() # Read first frame of video
+
+        # Draw all contours 
         for i in range(1, len(np.unique(segmentation)) + 1):
             mask = segmentation == i
             contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
@@ -141,7 +174,15 @@ class segModel:
         plt.axis('off')
         plt.show()
 
-    def save_segmentation_video(self, segmentation):
+    def save_segmentation_video(self):
+
+        # Load segmentation
+        if self.stationary:
+            seg_path = self.filename.split('.mp4')[0]+'_segmentation.npy'
+            segmentation = np.load(seg_path, allow_pickle=True)
+        else:
+            seg_path = 'results/'+self.filename.split('.mp4')[0]+'_segmentation_{}.npy'
+    
         # Read video
         vidcap = cv2.VideoCapture(self.filename)
         frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -166,10 +207,10 @@ class segModel:
         while(success):
             # Capture frame-by-frame
 
-            if self.stationary==False:
-                labels = segmentation[frame_idx,:,:]
-            else:
-                labels=segmentation
+            if self.stationary:
+                labels = segmentation
+            if not self.stationary:
+                labels = np.load(seg_path.format(frame_idx), allow_pickle=True)
             
             # Draw contours
             contour_image = np.copy(frame)
@@ -190,8 +231,17 @@ class segModel:
         out_contours.release()
         return contour_images, fps
     
-    def extract_timeseries(self, segmentation, save_centroids=True, save_pixels=False):
+    def extract_timeseries(self, save_centroids=True, save_pixels=False):
 
+        if self.stationary:
+            self.stationary_extraction(save_centroids, save_pixels)
+        else:
+            self.dynamic_extraction(save_centroids, save_pixels)
+
+    def stationary_extraction(self, save_centroids, save_pixels):
+        seg_path = self.filename.split('.mp4')[0]+'_segmentation.npy'
+        segmentation = np.load(seg_path, allow_pickle=True)
+        
         start_time = time.time()
 
         n_cells = np.max(segmentation) # max ROI ID
@@ -255,6 +305,9 @@ class segModel:
         if save_pixels:
             pixels_df.to_csv(f'results/{self.save_filename}_pixels.csv', sep=',', header=True, index=False)
 
+    def dynamic_extraction(self, save_centroids, save_pixels):
+        pass
+
 if __name__=='__main__':
     
     # Data
@@ -277,4 +330,4 @@ if __name__=='__main__':
     # https://cellpose.readthedocs.io/en/latest/settings.html#resample
 
     seg = segModel(filename=FILENAME, stationary=STATIONARY)
-    masks, mean_mat = seg.process_data(cell_diameter=DIAMETER, flow_thresh=FLOW_THRESHOLD, cell_prob_thresh=CELL_PROB_THRESHOLD, resample=RESAMPLE, stitch_threshold=0.75)
+    seg.process_data(cell_diameter=DIAMETER, flow_thresh=FLOW_THRESHOLD, cell_prob_thresh=CELL_PROB_THRESHOLD, resample=RESAMPLE, stitch_threshold=0.75)
