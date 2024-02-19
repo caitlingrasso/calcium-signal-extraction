@@ -153,6 +153,8 @@ class segModel:
 
         print(f'segmentation took {time.time()-start_time:.2f} seconds')
 
+        return masks_stitched
+
     def visualize_segmentation(self):
         
         # Load segmentation
