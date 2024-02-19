@@ -64,7 +64,8 @@ class segModel:
             self.process_nonstationary_data(cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold)
 
         elif self.mode=='do3D':
-            self.process_3D_data(cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold)
+            masks = self.process_3D_data(cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold)
+            return masks
     
     def process_stationary_data(self, cell_diameter, flow_thresh, cell_prob_thresh, resample):
         start_time = time.time()
