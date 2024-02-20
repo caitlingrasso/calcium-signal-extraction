@@ -1,13 +1,14 @@
 import cv2
 import numpy as np
-from cellpose import models
+from cellpose import models, plot, utils
 import matplotlib.pyplot as plt
 import os
 import time
 import pandas as pd
+import matplotlib as mpl
 
 class segModel:
-    def __init__(self, filename, save_filename=None, gpu=True, mode=None) -> None:
+    def __init__(self, filename, save_filename=None, gpu=True, mode=None, n_frames=None) -> None:
         self.model = models.Cellpose(gpu=gpu, model_type='cyto')
         self.filename = filename
         
@@ -15,21 +16,26 @@ class segModel:
             print("Specify segmentation mode: stationary, non-stationary, do3D") # TODO: change this once non-stationary method has been nailed down
         self.mode = mode
 
-        self.gray_stack, self.calcium_stack = self.get_frames()
+        self.gray_stack, self.calcium_stack = self.get_frames(n_frames)
         
         if save_filename is not None:
             self.save_filename = save_filename
         else:
             self.save_filename = self.filename.split('.mp4')[0]
 
-    def get_frames(self):
+        self.colors=None
+
+    def get_frames(self, n_frames):
+        # TODO: remove last few frames if they're entirely black (no cells) - or have this be a requirement (i.e. user must do this before using the software).
+
         # Extract frames from video
         vidcap = cv2.VideoCapture(self.filename)
         success,image = vidcap.read()
-        # frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        # TESTING: use only the first few frames 
-        frame_count=2
+        if n_frames is not None:
+            frame_count = n_frames
+        else:
+            frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         if self.mode=='do3D':
             gray_stack = np.zeros(shape=(frame_count,image.shape[0],image.shape[1])) #Z,X,Y for cellpose 3D segmentation
@@ -41,9 +47,9 @@ class segModel:
         frame_idx = 0
         while success:
 
-            # TESTING: use only the first few frames
-            if frame_idx == 2:
-                break
+            if n_frames is not None:
+                if frame_idx == frame_count:
+                    break
 
             if self.mode=='do3D':
                 gray_stack[frame_idx,:,:] = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -64,8 +70,8 @@ class segModel:
             self.process_nonstationary_data(cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold)
 
         elif self.mode=='do3D':
-            masks = self.process_3D_data(cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold)
-            return masks
+            self.masks = self.process_3D_data(cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold)
+            return self.masks
     
     def process_stationary_data(self, cell_diameter, flow_thresh, cell_prob_thresh, resample):
         start_time = time.time()
@@ -155,40 +161,83 @@ class segModel:
         print(f'segmentation took {time.time()-start_time:.2f} seconds')
 
         return masks_stitched
+    
 
-    def visualize_segmentation(self):
+    def clean_segmentation(self):
+        # Keep only labels that exist in all frames
+
+        # Determine which labels 
+        set1 = set(self.masks[0,:,:].flatten())
+
+        differences = []
+
+        for z in range(1, self.masks.shape[0]):
+
+            set2 = set(self.masks[z,:,:].flatten())
+
+            intersection = set1.intersection(set2)
+            difference = (set1.union(set2)) - intersection
+
+            differences+=list(difference)
+
+            set1 = intersection 
+
+        print('Num. consistent labels:', len(intersection))
+        print('Num. erratic labels:', len(differences))
+
+        # Clean segmentation
+
+        for j in list(differences):
+            try:
+                self.masks[self.masks==j] = 0 # remove IDs in difference
+            except:
+                continue
+
+    def set_label_colors(self):
+        # Generate list of unique colors for each segmentation
+        cmap = mpl.colormaps['hsv']
+        colors = cmap(np.random.random(len(np.unique(self.masks))))[:,:-1] # get rid of alpha 
+
+    def visualize_segmentation(self, n=3, vis_type='fill', overlay=False): 
+        '''
+        Visualize segmentation
+
+        n = number of frames to plot with segmentation overlayed
+        vis_type = 'fill' or 'outline' (default='fill'). Whether to fill the identified cells or just outline them.
+        overlay = Bool. (default=False). Overlay segmentations over original image or use a white background for clarity. 
         
-        # Load segmentation
-        if self.stationary:
-            seg_path = 'results/'+self.filename.split('.mp4')[0]+'_segmentation.npy'
-        else:
-            seg_path = 'results/'+self.filename.split('.mp4')[0]+'_segmentation_0.npy' # first frame
-        segmentation = np.load(seg_path, allow_pickle=True)
-    
-        # Load video
-        vidcap = cv2.VideoCapture(self.filename)
-        success,frame = vidcap.read() # Read first frame of video
+        # TODO: implement vis_type=='outline'
+        '''
 
-        # Draw all contours 
-        for i in range(1, len(np.unique(segmentation)) + 1):
-            mask = segmentation == i
-            contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        if self.colors is None:
+            self.set_label_colors()
 
-            cv2.drawContours(frame, contours, 0, (255, 0, 0), 1)
+        # Plot overlay
+        plt.figure(figsize=(5,3))
 
-        plt.imshow(frame)
-        plt.axis('off')
+        for i,t in enumerate(range(self.gray_stack.shape[0])):
+            plt.subplot(1,2,i+1)
+
+            if overlay:
+                imgout= self.gray_stack[t, :, :].copy()
+            else:
+                imgout=np.ones(shape=self.gray_stack[t,:,:].shape)
+            seg = self.masks[t,:,:]
+
+            imgout = plot.mask_overlay(imgout, seg, self.colors)
+
+            plt.imshow(imgout)
+            plt.axis('off')
+            plt.title(f't={t}')
+
         plt.show()
-
-    def save_segmentation_video(self):
-
-        # Load segmentation
-        if self.stationary:
-            seg_path = self.filename.split('.mp4')[0]+'_segmentation.npy'
-            segmentation = np.load(seg_path, allow_pickle=True)
-        else:
-            seg_path = 'results/'+self.filename.split('.mp4')[0]+'_segmentation_{}.npy'
     
+    def save_segmentation_video(self, save_path, n=3, vis_type='fill', overlay=False):
+        # TODO: save_path must end in .mp4
+
+        if self.colors is None:
+            self.set_label_colors()
+
         # Read video
         vidcap = cv2.VideoCapture(self.filename)
         frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -201,41 +250,111 @@ class segModel:
         frame_width = int(vidcap.get(3))
         frame_height = int(vidcap.get(4))
 
-        # Define the codec and create VideoWriter object in .mp4 format
-        os.makedirs('results/', exist_ok=True)
-        out_contours = cv2.VideoWriter('results/'+self.save_filename+'_segmentation.mp4',cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width,frame_height))
+        vidcap.release()
+
+        out_video = cv2.VideoWriter(save_path,cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width,frame_height))
+
         frame_idx = 0
 
-        contour_images = []
-
-        success,frame = vidcap.read()
-
-        while(success):
-            # Capture frame-by-frame
-
-            if self.stationary:
-                labels = segmentation
-            if not self.stationary:
-                labels = np.load(seg_path.format(frame_idx), allow_pickle=True)
+        for i,t in enumerate(range(self.gray_stack.shape[0])):
+        
+            if overlay:
+                imgout= self.gray_stack[t, :, :].copy()
+            else:
+                imgout=np.ones(shape=self.gray_stack[t,:,:].shape)
             
-            # Draw contours
-            contour_image = np.copy(frame)
-            for i in range(1, len(np.unique(labels)) + 1):
-                mask = labels == i
-                if np.sum(mask) > 0:
-                    contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-                    cv2.drawContours(contour_image, contours, -1, (255, 0, 0), 1)
-            
-            out_contours.write(contour_image)
-            contour_images.append(contour_image)
+            seg = self.masks[t,:,:]
+        
+            imgout = plot.mask_overlay(imgout, seg, self.colors)
+            plt.axis('off')
+            plt.title(f't={t}')
 
+            out_video.write(imgout)
+            
             frame_idx += 1
-            
-            success, frame = vidcap.read()
 
-        vidcap.release()
-        out_contours.release()
-        return contour_images, fps
+        out_video.release()
+
+    # def visualize_segmentation(self):
+        
+    #     # Load segmentation
+    #     if self.stationary:
+    #         seg_path = 'results/'+self.filename.split('.mp4')[0]+'_segmentation.npy'
+    #     else:
+    #         seg_path = 'results/'+self.filename.split('.mp4')[0]+'_segmentation_0.npy' # first frame
+    #     segmentation = np.load(seg_path, allow_pickle=True)
+    
+    #     # Load video
+    #     vidcap = cv2.VideoCapture(self.filename)
+    #     success,frame = vidcap.read() # Read first frame of video
+
+    #     # Draw all contours 
+    #     for i in range(1, len(np.unique(segmentation)) + 1):
+    #         mask = segmentation == i
+    #         contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+    #         cv2.drawContours(frame, contours, 0, (255, 0, 0), 1)
+
+    #     plt.imshow(frame)
+    #     plt.axis('off')
+    #     plt.show()
+
+    # def save_segmentation_video(self):
+
+    #     # Load segmentation
+    #     if self.stationary:
+    #         seg_path = self.filename.split('.mp4')[0]+'_segmentation.npy'
+    #         segmentation = np.load(seg_path, allow_pickle=True)
+    #     else:
+    #         seg_path = 'results/'+self.filename.split('.mp4')[0]+'_segmentation_{}.npy'
+    
+    #     # Read video
+    #     vidcap = cv2.VideoCapture(self.filename)
+    #     frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    #     # get fps from video
+    #     fps = vidcap.get(cv2.CAP_PROP_FPS)
+    #     print(f'{frame_count} frames in video')
+
+    #     # Get frame width and height
+    #     frame_width = int(vidcap.get(3))
+    #     frame_height = int(vidcap.get(4))
+
+    #     # Define the codec and create VideoWriter object in .mp4 format
+    #     os.makedirs('results/', exist_ok=True)
+    #     out_contours = cv2.VideoWriter('results/'+self.save_filename+'_segmentation.mp4',cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width,frame_height))
+    #     frame_idx = 0
+
+    #     contour_images = []
+
+    #     success,frame = vidcap.read()
+
+    #     while(success):
+    #         # Capture frame-by-frame
+
+    #         if self.stationary:
+    #             labels = segmentation
+    #         if not self.stationary:
+    #             labels = np.load(seg_path.format(frame_idx), allow_pickle=True)
+            
+    #         # Draw contours
+    #         contour_image = np.copy(frame)
+    #         for i in range(1, len(np.unique(labels)) + 1):
+    #             mask = labels == i
+    #             if np.sum(mask) > 0:
+    #                 contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    #                 cv2.drawContours(contour_image, contours, -1, (255, 0, 0), 1)
+            
+    #         out_contours.write(contour_image)
+    #         contour_images.append(contour_image)
+
+    #         frame_idx += 1
+            
+    #         success, frame = vidcap.read()
+
+    #     vidcap.release()
+    #     out_contours.release()
+    #     return contour_images, fps
     
     def extract_timeseries(self, save_centroids=True, save_pixels=False):
 
