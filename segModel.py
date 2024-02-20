@@ -26,10 +26,10 @@ class segModel:
         # Extract frames from video
         vidcap = cv2.VideoCapture(self.filename)
         success,image = vidcap.read()
-        frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
+        # frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         # TESTING: use only the first few frames 
-        # frame_count=2
+        frame_count=2
 
         if self.mode=='do3D':
             gray_stack = np.zeros(shape=(frame_count,image.shape[0],image.shape[1])) #Z,X,Y for cellpose 3D segmentation
@@ -42,8 +42,8 @@ class segModel:
         while success:
 
             # TESTING: use only the first few frames
-            # if frame_idx == 2:
-            #     break
+            if frame_idx == 2:
+                break
 
             if self.mode=='do3D':
                 gray_stack[frame_idx,:,:] = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
