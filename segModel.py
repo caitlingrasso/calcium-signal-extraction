@@ -61,6 +61,11 @@ class segModel:
             success,image = vidcap.read()
 
         return gray_stack, calcium_stack
+    
+    def test_params(self, cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold=None):
+
+        # TODO: Run model on first frame of video and plot results
+        pass
 
     def process_data(self, cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold=None):
         if self.mode=='stationary':
@@ -229,7 +234,7 @@ class segModel:
 
             ax.imshow(imgout)
             ax.axis('off')
-            ax.title(f't={t}')
+            ax.set_title(f't={t}')
 
         plt.show()
     
