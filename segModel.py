@@ -201,7 +201,7 @@ class segModel:
     def set_label_colors(self):
         # Generate list of unique colors for each segmentation
         cmap = mpl.colormaps['hsv']
-        colors = cmap(np.random.random(len(np.unique(self.masks))))[:,:-1] # get rid of alpha 
+        self.colors = cmap(np.random.random(len(np.unique(self.masks))))[:,:-1] # get rid of alpha 
 
     def visualize_segmentation(self, n=3, vis_type='fill', overlay=False): 
         '''
@@ -272,8 +272,6 @@ class segModel:
             seg = self.masks[t,:,:]
         
             imgout = plot.mask_overlay(imgout, seg, self.colors)
-            plt.axis('off')
-            plt.title(f't={t}')
 
             out_video.write(imgout)
             
