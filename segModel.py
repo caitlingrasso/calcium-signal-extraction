@@ -213,10 +213,11 @@ class segModel:
             self.set_label_colors()
 
         # Plot overlay
-        plt.figure(figsize=(5,3))
+        fig, axes = plt.subplots(1, n, figsize=(5,n+1))
 
         for i,t in enumerate(range(self.gray_stack.shape[0])):
-            plt.subplot(1,2,i+1)
+            
+            ax = axes[i]
 
             if overlay:
                 imgout= self.gray_stack[t, :, :].copy()
@@ -226,9 +227,9 @@ class segModel:
 
             imgout = plot.mask_overlay(imgout, seg, self.colors)
 
-            plt.imshow(imgout)
-            plt.axis('off')
-            plt.title(f't={t}')
+            ax.imshow(imgout)
+            ax.axis('off')
+            ax.title(f't={t}')
 
         plt.show()
     
