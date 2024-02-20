@@ -65,6 +65,7 @@ class segModel:
     def test_params(self, cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold=None):
 
         # TODO: Run model on first frame of video and plot results
+        # if use_projection is True, then compute projection and run the model on that, and plot results
         pass
 
     def process_data(self, cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold=None):
@@ -201,7 +202,7 @@ class segModel:
     def set_label_colors(self):
         # Generate list of unique colors for each segmentation
         cmap = mpl.colormaps['hsv']
-        self.colors = cmap(np.random.random(len(np.unique(self.masks))))[:,:-1] # get rid of alpha 
+        self.colors = cmap(np.random.random(len(np.unique(self.masks-1))))[:,:-1] # get rid of alpha 
 
     def visualize_segmentation(self, n=3, vis_type='fill', overlay=False): 
         '''
