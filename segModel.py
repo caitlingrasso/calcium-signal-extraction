@@ -210,7 +210,7 @@ class segModel:
 
             self.masks[self.masks==k] = label_count
 
-        label_count+=1
+            label_count+=1
 
     def set_label_colors(self):
         # Generate list of unique colors for each segmentation
@@ -236,7 +236,10 @@ class segModel:
 
         for t in range(self.gray_stack.shape[0]):
             
-            ax = axes[t]
+            if n>1:
+                ax = axes[t]
+            else:
+                ax = axes
 
             if overlay:
                 imgout= self.gray_stack[t, :, :].copy()
