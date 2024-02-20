@@ -199,12 +199,25 @@ class segModel:
             except:
                 continue
 
+        # Reset labels 
+
+        label_count = 1
+
+        for i,k in enumerate(list(intersection)):
+
+            if k==0:
+                continue
+
+            self.masks[self.masks==k] = label_count
+
+        label_count+=1
+
     def set_label_colors(self):
         # Generate list of unique colors for each segmentation
         cmap = mpl.colormaps['hsv']
-        self.colors = cmap(np.random.random(len(np.unique(self.masks-1))))[:,:-1] # get rid of alpha 
+        self.colors = cmap(np.random.random(len(np.unique(self.masks))))[:,:-1] # get rid of alpha 
 
-    def visualize_segmentation(self, n=3, vis_type='fill', overlay=False): 
+    def visualize_segmentation(self, n=1, vis_type='fill', overlay=False): 
         '''
         Visualize segmentation
 
@@ -219,11 +232,11 @@ class segModel:
             self.set_label_colors()
 
         # Plot overlay
-        fig, axes = plt.subplots(1, n, figsize=(5,n+1))
+        fig, axes = plt.subplots(1, n)
 
-        for i,t in enumerate(range(self.gray_stack.shape[0])):
+        for t in range(self.gray_stack.shape[0]):
             
-            ax = axes[i]
+            ax = axes[t]
 
             if overlay:
                 imgout= self.gray_stack[t, :, :].copy()
