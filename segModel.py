@@ -25,7 +25,7 @@ class segModel:
 
         self.colors=None
 
-    def get_frames(self, n_frames):
+    def get_frames(self,n_frames):
         # TODO: remove last few frames if they're entirely black (no cells) - or have this be a requirement (i.e. user must do this before using the software).
 
         # Extract frames from video
@@ -139,7 +139,36 @@ class segModel:
 
         print(f'segmentation took {time.time()-start_time:.2f} seconds')
 
-    def process_3D_data(self, cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold):
+    # def process_3D_data(self, cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold):
+    #     start_time = time.time()
+
+    #     os.makedirs('results/', exist_ok=True)
+
+    #     # Image Preprocessing
+    #     processed_gray_stack = np.copy(self.gray_stack)
+        
+    #     kernel_mc = np.ones((3,3),np.uint8) # morph closing kernel
+    #     kernel_sharp = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+    #     for i in range(processed_gray_stack.shape[0]): # iterate over frames
+    #         # Enhance contrast
+    #         processed_gray_stack[i,:,:] = cv2.normalize(processed_gray_stack[i,:,:], None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+
+    #         # # Morphological closing
+    #         processed_gray_stack[i,:,:] = cv2.morphologyEx(processed_gray_stack[i,:,:], cv2.MORPH_CLOSE, kernel_mc,iterations = 1)
+
+    #         # TODO: add a background subtraction?
+
+    #         # Sharpen the image
+    #         processed_gray_stack[i,:,:] = cv2.filter2D(processed_gray_stack[i,:,:], -1, kernel_sharp)
+        
+    #     masks_stitched, flows_stitched, styles_stitched, _ = self.model.eval(processed_gray_stack, channels=[0,0], diameter=cell_diameter, cellprob_threshold=cell_prob_thresh, flow_threshold=flow_thresh, resample=resample, do_3D=False, stitch_threshold=stitch_threshold)
+    #     np.save('results/{}_segmentation.npy'.format(self.save_filename), masks_stitched)
+
+    #     print(f'segmentation took {time.time()-start_time:.2f} seconds')
+
+    #     return masks_stitched
+        
+    def process_3D_data(self, cell_diameter, flow_thresh, cell_prob_thresh, resample, stitch_threshold, segment_every=3):
         start_time = time.time()
 
         os.makedirs('results/', exist_ok=True)
@@ -149,6 +178,7 @@ class segModel:
         
         kernel_mc = np.ones((3,3),np.uint8) # morph closing kernel
         kernel_sharp = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+
         for i in range(processed_gray_stack.shape[0]): # iterate over frames
             # Enhance contrast
             processed_gray_stack[i,:,:] = cv2.normalize(processed_gray_stack[i,:,:], None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
@@ -160,13 +190,25 @@ class segModel:
 
             # Sharpen the image
             processed_gray_stack[i,:,:] = cv2.filter2D(processed_gray_stack[i,:,:], -1, kernel_sharp)
+
+        # Run first segmentation
+        curr_masks, _, _, _ = self.model.eval(processed_gray_stack[0:segment_every], channels=[0,0], diameter=cell_diameter, cellprob_threshold=cell_prob_thresh, flow_threshold=flow_thresh, resample=resample, do_3D=False, stitch_threshold=stitch_threshold)
         
-        masks_stitched, flows_stitched, styles_stitched, _ = self.model.eval(processed_gray_stack, channels=[0,0], diameter=cell_diameter, cellprob_threshold=cell_prob_thresh, flow_threshold=flow_thresh, resample=resample, do_3D=False, stitch_threshold=stitch_threshold)
-        np.save('results/{}_segmentation.npy'.format(self.save_filename), masks_stitched)
+        # Iterate through every segment_every
+        for j in range(1,processed_gray_stack.shape[0]//segment_every+1):
+            next_masks, _, _, _ = self.model.eval(processed_gray_stack[(segment_every-1)*j:(segment_every-1)*j+segment_every], channels=[0,0], diameter=cell_diameter, cellprob_threshold=cell_prob_thresh, flow_threshold=flow_thresh, resample=resample, do_3D=False, stitch_threshold=stitch_threshold)
 
-        print(f'segmentation took {time.time()-start_time:.2f} seconds')
+            # TODO: combine curr_masks and next_masks 
 
-        return masks_stitched
+            return curr_masks, next_masks
+        
+        
+        # masks_stitched, flows_stitched, styles_stitched, _ = self.model.eval(processed_gray_stack, channels=[0,0], diameter=cell_diameter, cellprob_threshold=cell_prob_thresh, flow_threshold=flow_thresh, resample=resample, do_3D=False, stitch_threshold=stitch_threshold)
+        # np.save('results/{}_segmentation.npy'.format(self.save_filename), masks_stitched)
+
+        # print(f'segmentation took {time.time()-start_time:.2f} seconds')
+
+        # return masks_stitched
     
 
     def clean_segmentation(self):
