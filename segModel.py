@@ -233,6 +233,8 @@ class segModel:
                 
                 masks[:,:,i] = masks_stitched[1]
 
+                curr_mask = masks_stitched[1]
+
             print('Cleaning masks...')
             masks = self.clean_segmentation_3D(masks)
             
@@ -624,3 +626,35 @@ class segModel:
     #     vidcap.release()
     #     out_contours.release()
     #     return contour_images, fps
+            
+
+    # Another way to do outlines... not sure if I need
+
+    # # Plot single mask
+    # plt.figure(figsize=(5,3))
+
+    # maskID = 10
+    # single_ID_mask1 = masks[0].copy()
+    # single_ID_mask1[single_ID_mask1!=maskID] = 0 # remove all IDs that are not the one of interest
+
+    # single_ID_mask2 = masks[1].copy()
+    # single_ID_mask2[single_ID_mask2!=maskID] = 0 # remove all IDs that are not the one of interest
+
+    # single_ID_masks = [single_ID_mask1, single_ID_mask2]
+    # iplanes = [2,3]
+
+    # for i,iplane in enumerate(np.arange(2)):
+
+    # plt.subplot(1,2,i+1)
+
+    # outlines = utils.masks_to_outlines(single_ID_masks[i])
+    # outX, outY = np.nonzero(outlines)
+
+    # imgout= model.gray_stack[iplanes[i], :, :].copy()
+
+    # imgout[outX, outY] = 255
+
+    # # imgout = plot.mask_overlay(model.gray_stack[iplane, :, :].copy(), single_ID_masks[i])
+
+    # plt.imshow(imgout)
+    # plt.title('iplane = %d'%iplanes[i])
