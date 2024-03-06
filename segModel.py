@@ -128,7 +128,7 @@ class segModel:
 
     def load_masks_from_npy(self, inpath):
 
-        self.masks = np.load(inpath, allow_pickle=True)
+        self.masks = np.load(inpath, allow_pickle=True).astype(int)
     
     def test_params(self, cell_diameter=30, flow_thresh=0.4, cell_prob_thresh=0.0, resample=False, preprocess=False, 
                     frame=0, channel='gray', mode='projection'):
@@ -317,24 +317,35 @@ class segModel:
 
         # Clean segmentation
 
-        for j in list(differences):
-            try:
-                masks[masks==j] = 0 # remove IDs in difference
-            except:
-                continue
+        # remove IDs in difference
+        masks[np.isin(masks, differences)] = 0
+
+        # for j in list(differences):
+        #     try:
+        #         masks[masks==j] = 0 # remove IDs in difference
+        #     except:
+        #         continue
 
         # Reset labels 
+        # Create a mask for the intersection values
+        intersection_mask = np.isin(masks, intersection)
 
-        label_count = 1
+        # Replace intersection values with consecutive labels
+        unique_values, inverse = np.unique(masks[intersection_mask], return_inverse=True)
+        labels = np.arange(1, len(unique_values) + 1)
+        masks[intersection_mask] = labels[inverse] 
 
-        for i,k in enumerate(list(intersection)):
+        # label_count = 1
 
-            if k==0:
-                continue
+        # # should be able to do this more quickly
+        # for i,k in enumerate(list(intersection)):
 
-            masks[masks==k] = label_count
+        #     if k==0:
+        #         continue
 
-            label_count+=1
+        #     masks[masks==k] = label_count
+
+        #     label_count+=1
 
         return masks
 
@@ -490,7 +501,11 @@ class segModel:
         start_time = time.time()
 
         n_cells = np.max(self.masks) # max ROI ID
-        n_timesteps = self.signal_stack.shape[2]
+
+        if len(self.masks.shape)==3:
+            n_timesteps = np.min([self.signal_stack.shape[2],self.masks.shape[2]])
+        else:
+            n_timesteps = self.signal_stack.shape[2]
 
         # Initialize empty time series matrix of shape # cells x # timesteps
         series = np.zeros(shape=(n_cells, n_timesteps))
