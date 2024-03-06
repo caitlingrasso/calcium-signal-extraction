@@ -12,7 +12,7 @@ from skimage import measure
 class segModel:
     def __init__(self, filename, save_filename=None, save_dir='results', gpu=True, model='cyto') -> None:
         self.model = models.Cellpose(gpu=gpu, model_type=model)
-        self.filename = filename
+        self.filename=filename
 
         self.gray_stack, self.signal_stack, self.cell_membrane_stack, self.frame_count = self.get_frames()
 
@@ -24,9 +24,13 @@ class segModel:
         if save_filename is not None:
             self.save_filename = save_filename
         else:
-            self.save_filename = self.filename.split('.mp4')[0]
+            if len(filename.split('/'))>1:
+                self.save_filename = self.filename.split('/')[-1].split('.mp4')[0]
+            else:
+                self.save_filename = self.filename.split('.mp4')[0]
 
         self.save_dir = save_dir
+        os.makedirs(self.save_dir, exist_ok=True)
 
         self.masks = None
 
@@ -194,7 +198,6 @@ class segModel:
 
     def process_data_2D(self, cell_diameter, flow_thresh, cell_prob_thresh, resample, mode, preprocess, channel, stitch_threshold):
         start_time = time.time()
-        os.makedirs('results/', exist_ok=True)
 
         if channel=='gray':
             img_stack = self.gray_stack.copy()
@@ -482,7 +485,7 @@ class segModel:
             print('Run model to generate masks or load from .npy file,')
             return
         
-        static_segmentation=True if len(self.masks)==2 else False
+        static_segmentation=True if len(self.masks.shape)==2 else False
 
         start_time = time.time()
 
