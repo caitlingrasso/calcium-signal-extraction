@@ -303,7 +303,7 @@ class segModel:
 
         for z in range(1, masks.shape[2]):
 
-            set2 = set(self.masks[:,:,z].flatten())
+            set2 = set(masks[:,:,z].flatten())
 
             intersection = set1.intersection(set2)
             difference = (set1.union(set2)) - intersection
