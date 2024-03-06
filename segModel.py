@@ -463,9 +463,9 @@ class segModel:
         for i,t in enumerate(range(n_frames)):
         
             if overlay:
-                imgout= self.img_stack[:, :, t].copy()
+                imgout= img_stack[:, :, t].copy()
             else:
-                imgout=np.ones(shape=self.img_stack[:,:,t].shape)
+                imgout=np.ones(shape=img_stack[:,:,t].shape)
             
             if len(self.masks)==3:
                 seg = self.masks[:,:,t]
