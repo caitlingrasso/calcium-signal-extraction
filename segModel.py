@@ -452,7 +452,10 @@ class segModel:
 
         frame_idx = 0
 
-        n_frames = np.min([img_stack.shape[2],self.masks.shape[2]])
+        if len(self.masks)==3:
+            n_frames = np.min([img_stack.shape[2],self.masks.shape[2]])
+        else:
+            n_frames = img_stack.shape[2]
         
         if len(self.masks)==2:
             seg = self.masks
