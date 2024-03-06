@@ -452,12 +452,12 @@ class segModel:
 
         frame_idx = 0
 
-        if len(self.masks)==3:
+        if len(self.masks.shape)==3:
             n_frames = np.min([img_stack.shape[2],self.masks.shape[2]])
         else:
             n_frames = img_stack.shape[2]
         
-        if len(self.masks)==2:
+        if len(self.masks.shape)==2:
             seg = self.masks
 
         for i,t in enumerate(range(n_frames)):
@@ -467,7 +467,7 @@ class segModel:
             else:
                 imgout=np.ones(shape=img_stack[:,:,t].shape)
             
-            if len(self.masks)==3:
+            if len(self.masks.shape)==3:
                 seg = self.masks[:,:,t]
         
             imgout = plot.mask_overlay(imgout, seg, self.colors)
