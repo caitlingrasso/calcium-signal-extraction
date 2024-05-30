@@ -540,7 +540,7 @@ class segModel:
                 xs = inds[0,:,:][labels==label]
                 ys = inds[1,:,:][labels==label]
 
-                if save_centroids:
+                if t==0 and save_centroids: # only compute for the first time step
                     centroid_x = np.mean(xs)
                     centroid_y = np.mean(ys)
 
@@ -550,7 +550,7 @@ class segModel:
                     centroids_df = pd.concat([centroids_df, row.to_frame().T], ignore_index=True)
                     
 
-                if save_pixels:
+                if t==0 and save_pixels: # only compute for the first time step
                     # Append to pixels_df 
                     for i in range(len(xs)):
                         rows = {'label':int(label), 'series_index':int(label-1), 'x':xs[i], 'y':ys[i]}
